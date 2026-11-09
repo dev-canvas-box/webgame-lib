@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * WebGame Core Library (v1.0.0)
+ * WebGame Core Library (v1.1.0)
  * ============================================================================
  * ブラウザゲーム高速開発・トークン節約・バグ根絶のための軽量自律型ツールボックス。
  * 外部依存ゼロ（Vanilla JS）/ 2D Canvas & Three.js 3D 両対応。
@@ -12,6 +12,7 @@
  * - Game Feel & FX  : Trauma二乗シェイク、独立駆動ヒットストップ、Squash&Stretch、Vキートグル
  * - Math & Physics  : Vec2ベクトル計算、イージング、非対称当たり判定
  * - UI & Sandbox    : Phase 0用リアルタイムTweak UI自動生成、標準ポーズ/リトライ
+ * - Storage & Safe  : 名前空間隔離・破損修復・シークレットモード耐性 (WebGame.Storage)
  * ============================================================================
  */
 
@@ -19,7 +20,7 @@
   'use strict';
 
   const WebGame = {
-    version: '1.0.0'
+    version: '1.1.0'
   };
 
   /* --------------------------------------------------------------------------
@@ -479,6 +480,55 @@
 
     document.body.appendChild(container);
     return container;
+  };
+
+  /* --------------------------------------------------------------------------
+   * 8. Safe Storage & State Persistence (Namespace & Secret Mode Fallback)
+   * -------------------------------------------------------------------------- */
+  WebGame.Storage = {
+    _memoryFallback: {},
+
+    _getKey(gameId, key) {
+      return `${gameId}_${key}`;
+    },
+
+    save(gameId, key, value) {
+      const fullKey = this._getKey(gameId, key);
+      const jsonStr = JSON.stringify(value);
+      this._memoryFallback[fullKey] = jsonStr;
+
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(fullKey, jsonStr);
+        }
+      } catch (e) {
+        console.warn('[WebGame.Storage] localStorage write failed, using memory fallback:', e);
+      }
+    },
+
+    load(gameId, key, defaultValue = null) {
+      const fullKey = this._getKey(gameId, key);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const item = window.localStorage.getItem(fullKey);
+          if (item !== null) {
+            return JSON.parse(item);
+          }
+        }
+      } catch (e) {
+        console.warn('[WebGame.Storage] localStorage read/parse failed, using default/memory:', e);
+      }
+
+      if (this._memoryFallback[fullKey] !== undefined) {
+        try {
+          return JSON.parse(this._memoryFallback[fullKey]);
+        } catch (e) {
+          return defaultValue;
+        }
+      }
+
+      return defaultValue;
+    }
   };
 
   global.WebGame = Object.freeze(WebGame);
